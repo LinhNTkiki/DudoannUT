@@ -1,6 +1,5 @@
 import streamlit as st
 from pathlib import Path
-import os
 
 # Function to get sample image files from the specified directory
 @st.cache_data
