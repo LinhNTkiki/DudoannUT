@@ -1,116 +1,49 @@
-from pathlib import Path
-
-import numpy as np
 import streamlit as st
-import tensorflow as tf
-from PIL import Image
-from streamlit.runtime.uploaded_file_manager import UploadedFile
+from pathlib import Path
+import os
 
-IMG_SIZE = 224
-SAMPLE_IMG_DIR = Path("sample_images")
-
-title = "Dự đoán ung thư vú"
-st.set_page_config(page_title=title)
-st.header(title)
-st.markdown(
-    "Predict whether breast tumours in [histopathological][hp] images are"
-     " *benign* or *malignant (cancerous)*.\n\n"
-    "[hp]: https://en.wikipedia.org/wiki/Histopathology"
-)
-
-
-def load_image(
-    image: Path | UploadedFile, resize: bool = False
-) -> Image.Image | tf.Tensor:
-    """Convert an input image into the form expected by the model.
-
-    Args:
-        image (Path | UploadedFile): Image input.
-        resize (bool): Whether or not to resize the image.
-
-    Returns:
-        PIL.image.Image | tensorflow.Tensor: A PIL Image. Or a 3D tensor, if
-        resize is True.
-    """
-    img = Image.open(image)
-    if resize:
-        img = img.convert("RGB")  # Ensure image is in RGB mode
-        img = tf.image.resize_with_pad(img, IMG_SIZE, IMG_SIZE)
-    return img
-
-
+# Function to get sample image files from the specified directory
 @st.cache_data
-def get_sample_image_files() -> dict[str, list]:
-    """Fetch processed sample images, grouped by label.
+def get_sample_image_files():
+    sample_images_path = Path('sample_images')  # Using a relative path
+    try:
+        return {
+            image_file.name: image_file
+            for image_file in sample_images_path.iterdir()
+            if image_file.is_file()
+        }
+    except FileNotFoundError:
+        st.error("The specified directory does not exist.")
+        return {}
+    except PermissionError:
+        st.error("You do not have permission to access this directory.")
+        return {}
 
-    Returns:
-        dict: Keys are labels ("benign" / "malignant"). Values are lists of
-        images.
-    """
-    return {
-        dir.name: [load_image(file) for file in dir.glob("*.jpg")]
-        for dir in SAMPLE_IMG_DIR.iterdir()
-    }
-
-
-@st.cache_resource
-def load_model() -> tf.keras.Model:
-    """Fetch pretrained model.
-
-    Returns:
-        tf.keras.Model: Trained convolutional neural network.
-    """
-    return tf.keras.models.load_model("cnn_model.h5")
-
-
-def get_prediction(image: Image.Image | tf.Tensor) -> None:
-    """Obtain a prediction for the supplied image, and format the results for
-    display.
-
-    Args:
-        image (Image | Tensor): An image (PIL Image or 3D tensor).
-    """
-    pred = model.predict(np.expand_dims(image, 0), verbose=0)[0][0]
-    if pred < 0.5:
-        st.success(f"Result: {pred:.5f}")
-        st.markdown("Inference at *threshold==0.5*: :green['benign']")
+# Function to classify images into benign, malignant, and normal
+def classify_image(image_name):
+    # Placeholder classification logic
+    if "benign" in image_name.lower():
+        return "Benign"
+    elif "malignant" in image_name.lower():
+        return "Malignant"
+    elif "normal" in image_name.lower():
+        return "Normal"
     else:
-        st.warning(f"Result: {pred:.5f}")
-        st.markdown("Inference at *threshold==0.5*: :orange['malignant']")
-    st.caption(
-        "The model's output node has *sigmoid activation*, with 'malignant' "
-        "being the positive class (1), and 'benign' being the negative "
-        "class (0). Values close to 1 suggest high chances of malignancy, "
-        "and vice versa."
-    )
+        return "Unknown"
 
+# Streamlit app setup
+def main():
+    st.title("Breast Cancer Detection")
 
-sample_images = get_sample_image_files()
-model = load_model()
+    sample_images = get_sample_image_files()
 
-upload_tab, sample_tab = st.tabs(["Upload an image", "Use a sample image"])
+    if sample_images:
+        st.write("Sample Images:")
+        for image_name, image_path in sample_images.items():
+            st.write(f"Image: {image_name}")
+            classification = classify_image(image_name)
+            st.write(f"Classification: {classification}")
+            st.image(str(image_path))
 
-with upload_tab:
-    with st.form("image-input-form", clear_on_submit=True):
-        file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
-        submitted = st.form_submit_button("submit")
-        if file:
-            img = load_image(file, resize=True)
-            st.image(img.numpy().astype("uint8"))
-            get_prediction(img)
-
-with sample_tab:
-    if st.button("Get sample image", type="primary"):
-        # Randomly select a sample image
-        label = np.random.choice(["benign", "malignant"])
-        image_list = sample_images[label]
-        idx = np.random.choice(len(image_list))
-        st.image(image_list[idx], caption=f"{label} sample")
-        get_prediction(image_list[idx])
-
-st.caption(
-    "Exploratory data analysis and model training were performed in "
-    "[this Kaggle notebook][nb].\n\n"
-    "[nb]: https://www.kaggle.com/code/timothyabwao/detecting-breast-cancer"
-    "-with-computer-vision"
-)
+if __name__ == "__main__":
+    main()
